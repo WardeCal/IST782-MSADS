@@ -13,11 +13,11 @@ The Applied Data Science program at Syracuse University is designed to teach stu
 •	Synthesize the ethical dimensions of data science practice
 ## Table of Contents
 1.	README.md
-a.	Summary of repository purpose and content
+  a.	Summary of repository purpose and content
 2.	Resume
-a.	My Professional Resume
+  a.	My Professional Resume
 3.	Portfolio Milestone
-a.	A paper describing the projects and learning outcomes from four of my courses
+  a.	A paper describing the projects and learning outcomes from four of my courses
 4.	Reference Code
-a.	Python, R, and SQL code used in the projects 
+  a.	Python, R, and SQL code used in the projects 
 
