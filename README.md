@@ -1,4 +1,4 @@
-# IST782-MSADS
+# Masters of Applied Data Science, Syracuse University
 Cal Wardell 
 Student ID: 889182165<br>
 School email: cwardell@sry.edu<br>
