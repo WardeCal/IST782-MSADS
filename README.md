@@ -19,6 +19,8 @@ The Applied Data Science program at Syracuse University is designed to teach stu
 - My Professional Resume<br>
 3.	Portfolio Milestone
 - A paper describing the projects and learning outcomes from four of my courses<br>
-4.	Reference Code and Data
+4. Portfolio Presentation
+- Video presentation summarizing my Portfolio Milestone and the slide deck used in video presentation<br>
+5.	Reference Code and Data
 - Python, R, and SQL code created for the projects and any data used in the analysis(IST 652 data was to big to upload, but the link is in the paper)<br>
 
