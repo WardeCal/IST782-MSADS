@@ -1,0 +1,286 @@
+---
+title: "Lab719FinalCode"
+author: "Cal Wardell"
+date: "6/14/2022"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
+## Load packages
+```{r}
+#Install needed libraries
+library(ggplot2)
+library(randomForest)
+library(caret)
+library(xgboost)
+library(data.table)
+library(mlr)
+```
+
+
+# Goal 
+Determine which factors correlate with individual income to be greater or less than $50,000 per year.
+
+# About the data
+The data for the analysis is extracted from the 1994 census, retrieved from the UCI Machine Learning Repository website (Dua, 2019). It provides over 32,000 rows containing information of the individual’s age, working class, education, marital status, occupation, relationship to head of household on the census, race, sex, hours per week worked, native country, and whether the person made greater or less than $50,000 annually.  Additionally, the data contained the following three columns that the website did not clearly explain: fnlwgt, capital-gain, and capital-loss.
+
+This information can be used by local and national governments, non-profit groups, and other organizations that aim to raise individual incomes to decrease the rate of poverty. 
+
+# Step 1: Clean and prep the data
+My group and I examined the data for null values and transformed the needed columns to factors to be used in the machine learning model.
+
+```{r}
+#Step one: Get and prepare data
+adult.data <- read.csv(url("https://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.data"))
+
+#Rename columns. 
+col_names <- cbind("Age", "WorkClass", "Fnlwgt", "Education", "EducationNum", "MaritalStatus", "Occupation",
+                   "Relationship", "Race", "Sex", "CapitalGain", "CapitalLoss", "HoursPerWeek", "NativeCountry",
+                   "Value")
+
+colnames(adult.data) <- col_names
+str(adult.data)
+
+#Look for null values
+sum(is.na(adult.data)) #0 so we can move forward
+
+
+
+#Turn all the columns that are string into factors to be used for machine learning
+adult.data$WorkClass <- factor(adult.data$WorkClass)
+adult.data$Education <- factor(adult.data$Education)
+adult.data$MaritalStatus <- factor(adult.data$MaritalStatus)
+adult.data$Occupation <- factor(adult.data$Occupation)
+adult.data$Relationship <- factor(adult.data$Relationship)
+adult.data$Race <- factor(adult.data$Race)
+adult.data$Sex <- factor(adult.data$Sex)
+adult.data$NativeCountry <- factor(adult.data$NativeCountry) 
+adult.data$Value <- factor(adult.data$Value)
+str(adult.data)
+```
+
+
+# Step 2: Visualize the data
+```{r}
+#Visualize the data 
+#Look at age
+age <- ggplot(adult.data, aes(x = Age, fill = Age)) +
+  geom_histogram(fill="seagreen3", bins = 20) +
+  ggtitle('Age distribution')
+age
+
+#Look at sex
+sex <- ggplot(adult.data, aes(x = Sex, fill = Sex)) +
+  geom_bar(position = 'dodge', stat = 'count',fill="tomato2") +
+  ggtitle('Sex distribution')
+sex
+```
+
+We visualized the number of individuals who made more or less than $50,000 annually by type of employment. 
+```{r}
+#Look at the income by type of employer
+gWC <- ggplot(adult.data, aes(x = Value, fill = Value)) +
+  geom_bar(position = 'dodge', stat = 'count') +
+  stat_count(geom = 'text', color = 'black', 
+             aes(label = ..count.., vjust = -1)) +
+  facet_wrap(~WorkClass) + ggtitle('Income by Type of Employer') 
+
+gWC
+```
+
+The data suggests that individuals who are employed by the federal government or who are self-employed with an incorporated business are more likely to be making over $50,000. However, the overall percentage of individuals in these situations is much less than the other employment situations.
+
+Next, we visualized the number of those making more or less than $50,000 by marital status.  
+```{r}
+#By marital status
+gMS <- ggplot(adult.data, aes(x = Value, fill = Value)) +
+  geom_bar(position = 'dodge', stat = 'count') +
+  stat_count(geom = 'text', color = 'black', 
+             aes(label = ..count.., vjust = -1)) +
+  facet_wrap(~MaritalStatus) +
+  ggtitle('Income by Marital Status') 
+
+gMS
+```
+
+The data implies that a married individual is more likely to earn over $50,000 than any other marital status.
+
+We also Visualized the data by occupation
+```{r}
+#By occupation
+gO <- ggplot(adult.data, aes(x = Value, fill = Value)) +
+  geom_bar(position = 'dodge', stat = 'count') +
+  stat_count(geom = 'text', color = 'black', 
+             aes(label = ..count.., vjust = -1)) +
+  facet_wrap(~Occupation) +
+  ggtitle('Income by Occupation')
+
+gO
+```
+
+The occupation that has the best chance of earning over $50,000 are Managerial Executives and those who work in a speaclized profession. 
+
+Finally we visualized the data by education
+```{r}
+#By Education
+gEd <- ggplot(adult.data, aes(x = Value, fill = Value)) +
+  geom_bar(position = 'dodge', stat = 'count') +
+  stat_count(geom = 'text', color = 'black', 
+             aes(label = ..count.., vjust = -1)) +
+  facet_wrap(~Education) +
+  ggtitle('Income by Education') 
+
+gEd
+```
+
+We see that in general, the more education you received the higher chance you have at making more than $50,000. 
+
+# Step 3: Create a test and training data set
+Because there were 42 distinct countries in the data set, we chose to look primarily at whether the individual’s native country was the United States. 
+```{r}
+adult.data$USAorNot <- as.integer(as.numeric(adult.data$NativeCountry))
+adult.data$USAorNot <- ifelse(adult.data$USAorNot == 40, 1,0)
+adult.data$USAorNot <- as.factor(adult.data$USAorNot)
+head(adult.data)
+
+set.seed(1234)
+indices <- sample(nrow(adult.data), 0.70 * nrow(adult.data))
+train <- adult.data[indices, ]
+test <- adult.data[-indices, ]
+
+str(train)
+str(test)
+```
+
+# Step 4: Create and test the Random Forest model
+```{r}
+#Random Forrest 
+rf <- randomForest(Value ~ ., data = train)
+rf
+varImpPlot(rf) #Shows us which variables were most important to our tree
+
+```
+
+First, we built a Random Forest model with all the variables. The graph above shows the significance of each variable in the model. USAorNot was insignificant, so we reran the model without it. Additionally, because Education and EducationNum both refer to the same characteristic, we did not include EducationNum in the model. Finally, we removed Relationship as we felt that Marital Status was sufficient. After running the model again, the graph below depicts the significance of the variables:
+```{r}
+test2 <- subset(test, select = -c(USAorNot, EducationNum,Relationship))
+train2 <- subset(train, select = -c(USAorNot, EducationNum,Relationship))
+
+rf2 <- randomForest(Value ~ ., data = train2)
+varImpPlot(rf2)  #See how meaningful the variables are
+```
+
+Here are the initial results of our model
+
+```{r}
+rf2
+```
+
+Our model had an initial accuracy of 86.2%. It was 93.03% accurate at predicting below or equal to $50,000, but only 65.18% accurate at predicting if the individual made more than $50,000. We then tested our model; below are the results:
+
+```{r}
+#Test our model
+predrf = predict(rf2, newdata=test2[,-13])
+comptablerf <- data.frame(test2[,13],predrf)
+#Analyse results
+confusionMatrix(comptablerf$test2...13, comptablerf$predrf)
+```
+
+With a p-value well below the 0.05 mark, our model was statistically significant. It was 86.75% accurate, and more accurate at predicting those who make less than or equal to $50,000 than those who make more than $50,000. 
+
+# Step 5: Create and test the XGBoost model
+We then created an XGBoost model on the data. We ran it with the default parameters and here are the results when we ran it against the test:
+```{r}
+#To run XG boost, we need it to be in a binary format. -1 makes it so <50k is 0 and >= 50 k is 1
+#Need data to be in tables
+train3 <- setDT(train2)
+test3 <- setDT(test2)
+y <- as.numeric(train2$Value) - 1
+test_y <- as.numeric(test2$Value) - 1
+prep_xg_train <- model.matrix(~.+0,data = train3[,-c("Value"),with=F]) #~.+0 leads to encoding of all categorical variables without producing an intercept
+prep_xg_test <- model.matrix(~.+0,data = test3[,-c("Value"),with=F])
+
+#Create matrix
+xg_train <- xgb.DMatrix(data = prep_xg_train, label = y)
+xg_test <- xgb.DMatrix(data = prep_xg_test, label = test_y)
+
+
+#set parameters, use default first
+params <- list(booster = "gbtree", objective = "binary:logistic", eta=0.3, gamma=0, max_depth=6, 
+               min_child_weight=1, subsample=1, colsample_bytree=1)
+#Calculate best number of rounds
+set.seed(1234)
+xgb_cv <- xgb.cv(params = params, data = xg_train, nrounds = 100, nfold = 5, showsd = T, stratified = T,
+                 print_every_n = 10, early_stopping_rounds = 20, maximize = F)
+#Best number of rounds is 51
+
+#Run model with defaults
+xg_1 <- xgb.train(params = params, data = xg_train, nrounds = 51,
+                  watchlist = list(val = xg_test, train = xg_train), print_every_n = 10,
+                  maximize = T, eval_metric = "error")
+
+#Make the prediction
+xg_1_predict <- predict(xg_1, xg_test)
+xg_1_predict <- ifelse(xg_1_predict > 0.5, 1, 0) 
+
+#Confusion matrix
+confusionMatrix(as.factor(xg_1_predict), as.factor(test_y))
+```
+
+This was more accurate than our Random Forest model. This model was statistically significant as it had a p-value less than 0.05.
+Below shows a graph depicting which variables had the greatest impact on our model. Like Random Forest, marital status had the greatest influence. 
+```{r}
+important <- xgb.importance(feature_names = colnames(xg_train), model = xg_1)
+xgb.plot.importance(importance_matrix = important[1:20], main = 'XG Boost with default')
+```
+
+
+Acknowledgement of potential bias
+To be thorough in our analysis, we assessed the demographics to see if we had potential bias. We looked at ratio for US Native vs Not US Native, White vs Other Race, and Male vs Female, which is pictured below:
+
+```{r}
+#Look at ratios of some of the demographics to look for potential bias
+adult.data2 <- data.frame(adult.data)
+adult.data2$USAorNot <- as.integer(as.numeric(adult.data2$NativeCountry))
+adult.data2$USAorNot <- ifelse(adult.data2$USAorNot == 40, 1,0)
+#US Native vs Non-US Native
+us_ratio <- sum(adult.data2$USAorNot)/nrow(adult.data2)
+us_ratio *100
+USNative <- sum(adult.data2$USAorNot)
+NotNative <- nrow(adult.data2) - USNative
+native <- c(USNative, NotNative)
+pie(native, labels = c("US Native - 89.58%", "Not US Native - 10.42%"), main = "US Native or Not Population")
+
+#Race
+adult.data2$WhiteorNot <- as.integer(as.numeric(adult.data2$Race))
+adult.data2$WhiteorNot <- ifelse(adult.data2$WhiteorNot == 5, 1,0)
+White_ratio <- sum(adult.data2$WhiteorNot)/nrow(adult.data2)
+White_ratio *100
+wRace <- sum(adult.data2$WhiteorNot)
+oRace <- nrow(adult.data2) - wRace
+Race <- c(wRace, oRace)
+pie(Race, labels = c("White - 85.43%", "Other Race - 14.57%"), main = "Race Population")
+
+#Sex
+adult.data2$MaleorNot <- as.integer(as.numeric(adult.data2$Sex))
+adult.data2$MaleorNot <- ifelse(adult.data2$MaleorNot == 2, 1,0)
+Male_ratio <- sum(adult.data2$MaleorNot)/nrow(adult.data2)
+Male_ratio *100
+male <- sum(adult.data2$MaleorNot)
+female <- nrow(adult.data2) - male
+malefemale <- c(male, female)
+str(malefemale)
+pie(malefemale, labels = c("Male - 66.92%", "Female - 33.08%"), main = "Male/Female Population")
+```
+
+# Conclusion
+Our XGBoost model was 87% accurate at predicting if an individual would make greater or less than $50,000 annually. The most influential variable to determine whether a person makes more or less than $50,000 was marital status. The graphs suggest that married individuals had a better chance of making greater than $50,000 than those who are not married. Our recommendation is to increase programs and incentives that encourage individuals to get married, as this will increase the likelihood of earning $50,000 or more annually. 
+
+
+
+
+
+
+
